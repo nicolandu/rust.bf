@@ -10,8 +10,8 @@ pub enum Instr {
     In,
 }
 
-fn parse(program: String) -> Vec<Instr> {
-    program
+fn parse(source: String) -> Vec<Instr> {
+    let mut program = source
         .chars()
         .filter_map(|c|
             match c {
@@ -26,8 +26,16 @@ fn parse(program: String) -> Vec<Instr> {
         )
         .coalesce(|a, b|
             match (a, b) {
-                (Instr::Add(c), Instr::Add(d)) => Ok(Instr::Add(c+d)),
+                (Instr::Add(c), Instr::Add(d)) => Ok(Instr::Add(c.wrapping_add(d))),
                 _ => Err((a, b))
             }
-        ).collect() // https://stackoverflow.com/a/32717990
+        ).collect(); // loosely inspired by https://stackoverflow.com/a/32717990
+        
+        let mut jump_stack: _ = Vec::new();
+        
+        for (i, op) in program.iter().enumerate() {
+        }
+        
+        program
+    
 }
