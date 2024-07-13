@@ -1,7 +1,8 @@
-use anyhow::{Error, anyhow, bail};
+use anyhow::{Error, Result, anyhow, bail};
 use itertools::Itertools;
+use std::io::{Read, stdin};  
 
-const INITIAL_CAPACITY: usize = 30000
+const INITIAL_CAPACITY: usize = 30000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Instr {
@@ -18,7 +19,7 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn parse(source: String) -> Result<Self, Error> {
+    pub fn parse(source: String) -> Result<Self> {
         let mut program: Vec<Instr> = source
             .chars()
             .filter_map(|c|
@@ -42,7 +43,7 @@ impl Program {
                 }
             ).collect(); // loosely inspired by https://stackoverflow.com/a/32717990
             
-            let mut jump_stack: Vec<_> = Vec::new();
+            let mut jump_stack = Vec::new();
             
             for i in 0..program.len() {
                 match program[i] {
@@ -52,10 +53,11 @@ impl Program {
                             .ok_or(
                                 anyhow!("Unmatched closing bracket (`}}`) at position {}", i)
                             )?;
-                        // do not jump to matching bracket, instead, jump to instruction
-                        // after that to skip an unnecessary comparison
-                        program[i] = Instr::LoopEnd(other+1);
-                        program[other] = Instr::LoopBegin(i+1);
+                        // DO jump to matching bracket, as post-increment will
+                        // jump to instruction after that to skip an unnecessary
+                        // comparison
+                        program[i] = Instr::LoopEnd(other);
+                        program[other] = Instr::LoopBegin(i);
                     }
                     _ => ()
                 }
@@ -69,17 +71,41 @@ impl Program {
             Ok(Self{instrs: program})
     }
     
-    pub fn run(self) {
-        let mut mem = Vec<u8>::with_capacity(INITIAL_CAPACITY);
+    pub fn run(self) -> Result<()> {
+        let mut mem = vec![0u8; INITIAL_CAPACITY];
         let mut ptr: usize = 0;
         let mut pc: usize = 0;
-        while pc < self.data.len() {
-            match self.data[pc] {
-                Instr::Add(x) => self.data[pc] += x,
-                Instr::Ptr()
+        while pc < self.instrs.len() {
+            match self.instrs[pc] {
+                Instr::Add(x) => mem[ptr] = mem[ptr].wrapping_add(x),
+                Instr::Ptr(x) => {
+                    if x >= 0 {
+                        let Some(y) = ptr.checked_add(x as usize)
+                            else {bail!("BF pointer overflow");};
+                        ptr = y;
+                    } else {
+                        let Some(y) = ptr.checked_sub((-x) as usize)
+                            else {bail!("BF pointer underflow");};
+                        ptr = y;
+                    }
+                    if ptr as usize >= mem.len() {mem.resize(mem.len()+1, 0);}
+                },
+                Instr::LoopBegin(x) => if mem[ptr]==0 {pc=x;},
+                Instr::LoopEnd(x) => if mem[ptr]!=0 {pc=x;},
+                Instr::Out => print!("{}", mem[ptr] as char),
+                Instr::In => {
+                    let mut stdin_handle = stdin().lock();
+                    stdin_handle.read_exact(&mut [mem[ptr]]).unwrap();
+                }
             }
+            pc += 1;
         }
+        Ok(())
     }
+}
+
+fn main() {
+    Program::parse(String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")).unwrap().run();
 }
 
 #[cfg(test)]
@@ -103,7 +129,7 @@ mod tests {
     fn working_3() {
         assert_eq!(
             Program::parse(String::from("++>>[--<<]")).unwrap().instrs,
-            vec![Add(2), Ptr(2), LoopBegin(6), Add(0u8.wrapping_sub(2)), Ptr(-2), LoopEnd(3)]
+            vec![Add(2), Ptr(2), LoopBegin(5), Add(0u8.wrapping_sub(2)), Ptr(-2), LoopEnd(2)]
         );
     }
 }
