@@ -1,24 +1,25 @@
+use anyhow::{Error, anyhow, bail};
 use itertools::Itertools;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Instr {
     Add(u8), // +    Use complement to subtract (i.e. -2==+254 (mod 256))
     Ptr(isize), // > and <
-    Do(usize), // [    Index after matching ]
-    While(usize), // ]    Index after matching [
+    LoopBegin(usize), // [    Index after matching ]
+    LoopEnd(usize), // ]    Index after matching [
     Out,
     In,
 }
 
-fn parse(source: String) -> Vec<Instr> {
-    let mut program = source
+fn parse(source: String) -> Result<Vec<Instr>, Error> {
+    let mut program: Vec<_> = source
         .chars()
         .filter_map(|c|
             match c {
                 '+' => Some(Instr::Add(1)),
                 '-' => Some(Instr::Add(u8::MAX)),
-                '[' => Some(Instr::Do(0)),
-                ']' => Some(Instr::While(0)),
+                '[' => Some(Instr::LoopBegin(0)),
+                ']' => Some(Instr::LoopEnd(0)),
                 '.' => Some(Instr::Out),
                 ',' => Some(Instr::In),
                 _ => None
@@ -31,11 +32,41 @@ fn parse(source: String) -> Vec<Instr> {
             }
         ).collect(); // loosely inspired by https://stackoverflow.com/a/32717990
         
-        let mut jump_stack: _ = Vec::new();
+        let mut jump_stack: Vec<_> = Vec::new();
         
-        for (i, op) in program.iter().enumerate() {
+        for i in 0..program.len() {
+            match program[i] {
+                Instr::LoopBegin(_) => jump_stack.push(i),
+                Instr::LoopEnd(_) => {
+                    let other = jump_stack.pop()
+                        .ok_or(
+                            anyhow!("Unmatched closing bracket (`}}`) at position {}", i)
+                        )?;
+                    // do not jump to matching bracket, instead, jump to instruction
+                    // after that to skip an unnecessary comparison
+                    program[i] = Instr::LoopEnd(other+1);
+                    program[other] = Instr::LoopBegin(i+1);
+                }
+                _ => ()
+            }
         }
         
-        program
+        let len = jump_stack.len();
+        if len != 0 {
+            bail!("{} unmatched opening brackets (`{{`)", len);
+        }
+        
+        Ok(program)
     
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn working_1() {
+        parse(String::from("++++.>>[>[>.<<,,,]],"))
+        todo!();
+    }
 }
