@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow, bail};
 use itertools::Itertools;
-use std::io::{Read, Write, BufReader, BufWriter, ErrorKind, stdin, stdout,};  
+use std::io::{Read, Write, BufReader, BufWriter, ErrorKind, stdin, stdout,};
 
 const INITIAL_CAPACITY: usize = 30000;
 
@@ -76,7 +76,7 @@ impl Program {
         let mut ptr: usize = 0;
         let mut pc: usize = 0;
         let mut reader = BufReader::new(input);
-        let read_stream = reader.bytes();
+        let mut read_stream = reader.bytes();
         let mut writer = BufWriter::new(output);
         while pc < self.instrs.len() {
             match self.instrs[pc] {
@@ -97,12 +97,11 @@ impl Program {
                 Instr::LoopEnd(x) => if mem[ptr]!=0 {pc=x;},
                 Instr::Out => write!(writer, "{}", mem[ptr] as char).unwrap(),
                 Instr::In => {
-                    match reader.bytes().next() {
+                    match read_stream.next() {
                         Some(Ok(v)) => mem[ptr] = v,
                         Some(Err(_)) => bail!("Failed to read"),
                         None => mem[ptr] = 0,
                     }
-                    print!("{}", mem[ptr]);
                 }
             }
             pc += 1;
@@ -113,7 +112,7 @@ impl Program {
 
 fn main() {
     Program::parse(
-        String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")
+        String::from(",[.,]")
     ).unwrap().run(&mut stdin(), &mut stdout()).unwrap();
 }
 
@@ -153,11 +152,11 @@ mod tests {
         );
     }
     #[test]
-    fn run_1() {
+    fn cat() {
         let mut buf = Vec::new();
         Program::parse(
-            String::from("+,.,.,.,.,")
-        ).unwrap().run(&mut "Hello World!\0".as_bytes(), &mut buf).unwrap();
+            String::from(",[.,]")
+        ).unwrap().run(&mut "Hello World!".as_bytes(), &mut buf).unwrap();
         assert_eq!(
             buf,
             "Hello World!".as_bytes()
