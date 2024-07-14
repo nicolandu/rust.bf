@@ -1,6 +1,6 @@
-use anyhow::{Error, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use itertools::Itertools;
-use std::io::{Read, stdin};  
+use std::io::{Read, Write, BufReader, BufWriter, ErrorKind, stdin, stdout,};  
 
 const INITIAL_CAPACITY: usize = 30000;
 
@@ -71,10 +71,13 @@ impl Program {
             Ok(Self{instrs: program})
     }
     
-    pub fn run(self) -> Result<()> {
+    pub fn run(self, input: &mut impl Read, output: &mut impl Write) -> Result<()> {
         let mut mem = vec![0u8; INITIAL_CAPACITY];
         let mut ptr: usize = 0;
         let mut pc: usize = 0;
+        let mut reader = BufReader::new(input);
+        let read_stream = reader.bytes();
+        let mut writer = BufWriter::new(output);
         while pc < self.instrs.len() {
             match self.instrs[pc] {
                 Instr::Add(x) => mem[ptr] = mem[ptr].wrapping_add(x),
@@ -92,10 +95,14 @@ impl Program {
                 },
                 Instr::LoopBegin(x) => if mem[ptr]==0 {pc=x;},
                 Instr::LoopEnd(x) => if mem[ptr]!=0 {pc=x;},
-                Instr::Out => print!("{}", mem[ptr] as char),
+                Instr::Out => write!(writer, "{}", mem[ptr] as char).unwrap(),
                 Instr::In => {
-                    let mut stdin_handle = stdin().lock();
-                    stdin_handle.read_exact(&mut [mem[ptr]]).unwrap();
+                    match reader.bytes().next() {
+                        Some(Ok(v)) => mem[ptr] = v,
+                        Some(Err(_)) => bail!("Failed to read"),
+                        None => mem[ptr] = 0,
+                    }
+                    print!("{}", mem[ptr]);
                 }
             }
             pc += 1;
@@ -105,7 +112,9 @@ impl Program {
 }
 
 fn main() {
-    Program::parse(String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")).unwrap().run();
+    Program::parse(
+        String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")
+    ).unwrap().run(&mut stdin(), &mut stdout()).unwrap();
 }
 
 #[cfg(test)]
@@ -113,23 +122,45 @@ mod tests {
     use super::{*, Instr::*};
 
     #[test]
-    fn working_1() {
+    fn parse_1() {
         assert_eq!(
             Program::parse(String::from("+++")).unwrap().instrs,
             vec![Add(3)]);
     }
     #[test]
-    fn working_2() {
+    fn parse_2() {
         assert_eq!(
             Program::parse(String::from("---")).unwrap().instrs,
             vec![Add(0u8.wrapping_sub(3))]
         );
     }
     #[test]
-    fn working_3() {
+    fn parse_3() {
         assert_eq!(
             Program::parse(String::from("++>>[--<<]")).unwrap().instrs,
             vec![Add(2), Ptr(2), LoopBegin(5), Add(0u8.wrapping_sub(2)), Ptr(-2), LoopEnd(2)]
+        );
+    }
+    #[test]
+    fn hello_world() {
+        let mut buf = Vec::new();
+        Program::parse(
+            String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.")
+        ).unwrap().run(&mut "".as_bytes(), &mut buf).unwrap();
+        assert_eq!(
+            buf,
+            "Hello World!\n".as_bytes()
+        );
+    }
+    #[test]
+    fn run_1() {
+        let mut buf = Vec::new();
+        Program::parse(
+            String::from("+,.,.,.,.,")
+        ).unwrap().run(&mut "Hello World!\0".as_bytes(), &mut buf).unwrap();
+        assert_eq!(
+            buf,
+            "Hello World!".as_bytes()
         );
     }
 }
