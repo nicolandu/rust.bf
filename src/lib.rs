@@ -122,9 +122,10 @@ impl Program {
 }
 
 fn main() {
-    let args = Args::parse();
+    let input = vec!["program", "~/.profile"];
+    let args = Args::parse_from(input);
     let source = fs::read_to_string(args.filename).expect("Unable to read file");
-    Program::parse(source).unwrap().run(&mut stdin(), &mut stdout()).unwrap();
+    Program::parse(&source).unwrap().run(&mut stdin(), &mut stdout()).unwrap();
 }
 
 #[cfg(test)]
