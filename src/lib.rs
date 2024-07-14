@@ -1,8 +1,19 @@
 use anyhow::{Result, anyhow, bail};
 use itertools::Itertools;
-use std::io::{Read, Write, BufReader, BufWriter, ErrorKind, stdin, stdout,};
+use std::io::{Read, Write, BufReader, BufWriter, stdin, stdout,};
+use std::fs;
+use clap::Parser;
 
 const INITIAL_CAPACITY: usize = 30000;
+
+/// Brainfuck interpreter in Rust
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Name of the Brainfuck file to execute
+    filename: String,
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Instr {
@@ -19,7 +30,7 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn parse(source: String) -> Result<Self> {
+    pub fn parse(source: &str) -> Result<Self> {
         let mut program: Vec<Instr> = source
             .chars()
             .filter_map(|c|
@@ -75,7 +86,7 @@ impl Program {
         let mut mem = vec![0u8; INITIAL_CAPACITY];
         let mut ptr: usize = 0;
         let mut pc: usize = 0;
-        let mut reader = BufReader::new(input);
+        let reader = BufReader::new(input);
         let mut read_stream = reader.bytes();
         let mut writer = BufWriter::new(output);
         while pc < self.instrs.len() {
@@ -111,9 +122,9 @@ impl Program {
 }
 
 fn main() {
-    Program::parse(
-        String::from(",[.,]")
-    ).unwrap().run(&mut stdin(), &mut stdout()).unwrap();
+    let args = Args::parse();
+    let source = fs::read_to_string(args.filename).expect("Unable to read file");
+    Program::parse(source).unwrap().run(&mut stdin(), &mut stdout()).unwrap();
 }
 
 #[cfg(test)]
