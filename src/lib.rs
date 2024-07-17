@@ -1,10 +1,11 @@
 use anyhow::{anyhow, bail, Result};
 use itertools::Itertools;
 use std::io::{BufWriter, Read, Write};
+use serde::{Serialize, Deserialize};
 
 const INITIAL_CAPACITY: usize = 30000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum Instr {
     Add(u8),          // +    Use complement to subtract (i.e. -2==+254 (mod 256))
     Ptr(isize),       // > and <
@@ -14,6 +15,7 @@ enum Instr {
     In,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Program {
     instrs: Vec<Instr>,
 }
@@ -161,5 +163,13 @@ mod tests {
             .run(&mut "Hello World!".as_bytes(), &mut buf)
             .unwrap();
         assert_eq!(buf, "Hello World!".as_bytes());
+    }
+    #[test]
+    fn ser_de() {
+        let prog = Program::parse(
+            "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++."
+        ).unwrap();
+        let serialised = serde_json::to_string(&prog).unwrap();
+        assert_eq!(serde_json::from_str::<Program>(&serialised).unwrap(), prog);
     }
 }
