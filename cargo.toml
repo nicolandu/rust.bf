@@ -1,6 +1,0 @@
-[package]
-name = "rust_bf"                                         # the name of the package
-version = "0.1.0"                                        # the current version, obeying semver
-authors = ["Nicolas Landucci (gh:nicolandu)"]
-description = "A Brainfuck interpreter written in Rust."
-edition = "2021"
